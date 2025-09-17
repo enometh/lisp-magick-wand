@@ -278,6 +278,8 @@
   (:darwin "libMagickWand.dylib")
   (:unix
    (:or
+    "libMagickWand-7.Q16HDRI.so"
+
     "libMagickWand-7.Q16.so"
     "libMagickWand-7.Q16.so.2"
     "libMagickWand-7.Q16.so.3"
