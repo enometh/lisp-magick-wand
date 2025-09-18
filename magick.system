@@ -26,7 +26,8 @@
    (:file "magick"    :depends-on ("packages" "base" "quantum" "types" "enums"))
    (:file "utils"     :depends-on ("packages" "magick")))
 
-  :depends-on ("cffi"))
+  :depends-on ("cffi"
+	       "float-features"))
 
 #+nil
 (mk:oos :magick :load :compile-during-load t)
