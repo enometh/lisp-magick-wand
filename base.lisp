@@ -273,7 +273,9 @@
                                           (values ,@(reverse *result-values*)))))))))
        ,@ (when export-p `((export ',lisp-name))))))
 
-
+;; if :magick-altlib is featured use base-altlib.lisp to load the dlls
+;; instead.
+(unless (find :magick-altlib *features*)
 (cffi:define-foreign-library lib-magick-wand
   (:darwin "libMagickWand.dylib")
   (:unix
@@ -325,7 +327,7 @@
 (cffi:use-foreign-library lib-magick-wand)
 
 (unless (search "HDRI.so" (namestring (cffi:foreign-library-pathname (cffi::get-foreign-library  'lib-magick-wand))))
-  (pushnew 'no-hdri *features*))
+  (pushnew 'no-hdri *features*)))
 
 (defun type-name-to-class-name (name)
   (intern (concatenate 'string (symbol-name name) "-TYPE-CLASS")
