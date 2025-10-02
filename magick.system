@@ -12,6 +12,20 @@
   (merge-pathnames "lisp-magick-wand/" (translate-logical-pathname "EXTERN:")))
 (defvar *magick-binary-dir* (binary-directory *magick-source-dir*))
 
+#||
+;; to use the libraries defined with in base-altlib.lisp, push
+;; :magick-altlib to FEATURES and define preset the defvar
+;; cl-user::$magick-dll-variant to the variant you want to load.
+;; the cffi foreign library names should be keywords, so they can be
+;; specified before packages.lisp is loaded.
+
+(pushnew :magick-altlib *features*)
+(defvar cl-user::$magick-dll-variant :lib-magic-wand-32)
+(defvar cl-user::$magick-dll-variant :lib-magic-wand-8)
+(defvar cl-user::$magick-dll-variant :lib-magic-wand-16)
+(defvar cl-user::$magick-dll-variant :lib-magic-wand-64)
+||#
+
 (mk:defsystem :magick
   :source-pathname *magick-source-dir*
   :binary-pathname *magick-binary-dir*
@@ -19,6 +33,7 @@
   :components
   ((:file "packages")
    (:file "base"      :depends-on ("packages"))
+   (:file "base-altlib" :depends-on ("packages") :if-feature :magick-altlib)
    (:file "quantum"   :depends-on ("packages" "base"))
    (:file "types"     :depends-on ("packages" "base" "quantum"))
    (:file "option"    :depends-on ("packages" "base" "types"))
