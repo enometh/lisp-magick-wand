@@ -1,0 +1,42 @@
+;;; -*- Mode: LISP; Package: :cl-user; BASE: 10; Syntax: ANSI-Common-Lisp; -*-
+;;;
+;;;   Time-stamp: <>
+;;;   Touched: Sun Oct 12 11:15:08 2025 +0530 <enometh@net.meer>
+;;;   Bugs-To: enometh@net.meer
+;;;   Status: Experimental.  Do not redistribute
+;;;   Copyright (C) 2025 Madhu.  All Rights Reserved.
+;;;
+(in-package "CL-USER")
+
+#+nil
+(require 'magick)
+
+;; shared with magick.system
+(defvar *magick-bindings-source-dir*
+  (mk::system-relative-pathname :magick
+				"claw-cxx-bindings/7.1.0/gen/"))
+
+(defvar *magick-bindings-binary-dir*
+  (binary-directory "claw-cxx-imagemagick.bindings/"))
+
+#||
+(setq *magick-bindings-dir* "/dev/shm/claw-cxx-imagemagick/")
+(setq *magick-bindings-binary-dir*
+      (let ((*binary-directory-fasl-root*
+	     (merge-pathnames "fasl/" *magick-bindings-dir*)))
+	(binary-directory *magick-bindings-dir*)))
+||#
+
+(make:defsystem :claw-cxx-imagemagick.bindings
+  :source-pathname *magick-bindings-source-dir*
+  :binary-pathname *magick-bindings-binary-dir*
+  :source-extension "lisp"
+  :depends-on ("uiop" "cffi")
+  :components ((:module "bindings"
+		:components
+		((:file "x86_64-pc-linux-gnu" :if-feature (:and :x86-64 :linux))
+		 #+nil
+		 (:file "i686-pc-linux-gnu" :if-feature (:and :x86 :linux))))))
+
+#+nil
+(mk:oos :claw-cxx-imagemagick.bindings :load :compile-during-load t)
