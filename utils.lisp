@@ -142,6 +142,12 @@ be of the same dimensions."
          (progn ,@body)
       (destroy-drawing-wand ,var))))
 
+(defmacro with-cloned-drawing-wand ((var orig-wand) &body body)
+  `(let ((,var (clone-drawing-wand ,orig-wand)))
+    (unwind-protect
+         (progn ,@body)
+      (destroy-drawing-wand ,var))))
+
 
 ;;; Magick Wand Utilities
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
