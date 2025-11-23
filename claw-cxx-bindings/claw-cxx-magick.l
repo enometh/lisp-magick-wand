@@ -18,13 +18,14 @@
 (load "~/cl/extern/claw-cxx/claw-cxx.system")
 (require 'claw-cxx/util))
 
-(defvar *magick-bindings-dir* (mk::system-relative-pathname :magick "claw-bindings/7.1.0/"))
+(defvar *magick-bindings-dir* (mk::system-relative-pathname :magick "claw-cxx-bindings/7.1.0/gen/"))
 
+#+nil
 (setq *magick-bindings-dir* "/dev/shm/claw-cxx-imagemagick/")
 
 (make:defsystem :claw-cxx-imagemagick.bindings
   :source-pathname #1=#.*magick-bindings-dir*
-  :binary-pathname (let ((*binary-directory-fasl-root*
+  :binary-pathname (let (#+nil(*binary-directory-fasl-root*
 			  (merge-pathnames "fasl/" #1#)))
 		     (binary-directory #1# ))
   :source-extension "lisp"
@@ -57,6 +58,10 @@
 (unless (cffi:find-foreign-library "libresect.so")
   (cffi:load-foreign-library "libresect.so"))
 
+#+nil
+(unless (cffi:find-foreign-library "libresect.so")
+  (cffi:load-foreign-library "/dev/shm/libresect/build/libresect.so"))
+
 #||
 pkg-config --cflags ImageMagick-7.Q16HDRI
 -fopenmp -DMAGICKCORE_HDRI_ENABLE=1 -DMAGICKCORE_QUANTUM_DEPTH=16 -I/usr/include/ImageMagick-7
@@ -69,22 +74,48 @@ pkg-config --cflags  MagickCore-7.Q16HDRI
 (claw.wrapper:defwrapper
     ("claw-cxx-imagemagick"
      (:base-path "/dev/shm/claw-cxx-imagemagick/"
-      #+nil #.(merge-pathnames "gen/" *magick-bindings-dir*))
-     (:headers "MagickWand/MagickWand.h" "MagickCore/MagickCore.h" )
+      #+nil #. (merge-pathnames "gen/" *magick-bindings-dir*))
+     (:headers  "MagickWand/MagickWand.h" "MagickCore/MagickCore.h")
      (:system-includes "/usr/include/ImageMagick-7")
      (:defines "MAGICKCORE_HDRI_ENABLE" "1"  "MAGICKCORE_QUANTUM_DEPTH" "16")
      (:targets
       ((:and :x86-64 :linux) "x86_64-pc-linux-gnu")
       #+nil
       ((:and :x86 :linux) "i686-pc-linux-gnu"))
-     (:include-definitions ".")
-     (:exclude-definitions))
+     (:include-definitions ".*")
+     #+nil
+     (:exclude-definitions "^_*libcpp" "_H$"
+      "^_*LIBCPP"
+      "^(INFINITY|MATH_ERR(EXCEPT|NO)|HUGE_VAL[FL]?)$"
+      "math_errhandling"
+      "^M_([12]_)?(SQRT|PI|LOG|LN)"
+      "^NAN$" "_SOURCE$"
+      "^FP_"
+      "^_*(a?cos|a?sin|a?tan|cbrt|ceil|copysign|drem|erf|exp2?|fabs|fdim|finite|floor|fma|fmax|fmin|fmod|fpclassify|frexp|gamma|hypot|ilogb|iseqsig|isinf|isnan|issignaling|j0|j1|jn|ldexp|lgamma|llrint|llround|log|log10|log1p|log2|logb|l?rint|l?round|mod|nan|nearbyint|nextafter|nexttoward|pow|remainder|remquo|scalb|signgam|signbit|significand|sqrt|tgamma|trunc|y0|y1|yn)[fhl]?"
+      "^gamma$" "^gammaf$" "^gammal$"
+      "^lgamma$" "^lgammaf$" "^lgammal$"
+      "^lgamma_r$" "^lgammaf_r$" "^lgammal_r$"
+      "^drem$" "^dremf$" "^dreml$"
+      "^y0$" "^y0f$" "^y0l$"
+      "^y1$" "^y1f$" "^y1l$"
+      "^yn$" "^ynf$" "^ynl$"
+      "^j0$" "^j0f$" "^j0l$"
+      "^j1$" "^j1f$" "^j1l$"
+      "^jn$" "^jnf$" "^jnl$"
+      "^scalb$" "^scalbf$" "^scalbl$"
+      "^significand$" "^significandf$" "^significandl$"
+      "^finite$" "^finitef$" "^finitel$"
+      "^isinf$" "^isinff$" "^isinfl$"
+      "^isnan$" "^isnanf$" "^isnanl$"
+      "_t$" "^__(?!claw)"
+      ;; See https://gitlab.com/embeddable-common-lisp/ecl/-/issues/753
+      "^frexp$" "^frexpf$" "^modf$" "^modff$" "^nan$" "^nanf$" "^remquo$" "^remquof$"))
   :in-package "CLAW-CXX-IMAGEMAGICK"
-  :trim-enum-prefix nil
+  :trim-enum-prefix t
   :recognize-bitfields t
   :recognize-strings t
-  :with-adapter nil #+nil(:dynamic :path "lib/adapter.c"))
-
+  :recognize-arrays t
+  :with-adapter (:dynamic :path "lib/adapter.c"))
 
 #+nil
 (claw:generate-wrapper "claw-cxx-imagemagick")
@@ -115,8 +146,9 @@ pkg-config --cflags  MagickCore-7.Q16HDRI
 ;;;
 ;;;
 ;;;
+#+nil
 (let ((mk::*reload-systems-from-disk* nil))
-  (mk:oos :claw-cxx-imagemagick.bindings :load ))
+  (mk:oos :claw-cxx-imagemagick.bindings :load))
 
 #+nil
 (sort (mapcar 'symbol-name
@@ -186,8 +218,13 @@ pkg-config --cflags  MagickCore-7.Q16HDRI
 #||
 objdump -T  /usr/lib64/libMagickCore-7.Q16HDRI.so |\
 	grep  'g    DF' |\
- egrep -v '(MagickError)|(MagickFatalError)|(MagickWarning)|(ThrowException)' 
-
- \
-    awk '{ printf("#define %s  PrependMagickMethod(%s)\n", $3, $3); }' | sort
+ egrep -v '(MagickError)|(MagickFatalError)|(MagickWarning)|(ThrowException)'  |\
+ awk '{printf $7; printf "\n" }';
+ awk '{ printf("#define %s  PrependMagickMethod(%s)\n", $7, $7); }' | sort
 ||#
+
+(export
+ (loop for x being each external-symbol of "CLAW-CXX-IMAGEMAGICK"
+       when (eql x (find-symbol (symbol-name x) "MAGICK-USER"))
+       collect x)
+ "MAGICK-USER")
