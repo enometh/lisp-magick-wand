@@ -302,11 +302,25 @@ identify s1.png
 identify s2.png&
 ||#
 
-#+nil
-(with-wand (:width 703 :height 714)
-  (magick:read-image *wand* "/home/madhu/cl/extern/lisp-magick-wand/examples/s2.png")
-  (magick:with-pixel-wand (pw)
-    (magick:rotate-image *wand* pw 180))
-  (with-dw (dw)
-    (magick:draw-line dw 0 center-y *width* center-y)
-    (magick:draw-line dw center-x 0 center-x *height*)))
+(defun axes-image (wand &key vert-adj horz-adj rotate)
+  (let* ((w (magick:get-image-width wand))
+	 (h (magick:get-image-height wand))
+	 (cx (/ w 2))
+	 (cy (/ h 2))
+	 (x (if horz-adj (+ cx horz-adj) cx))
+	 (y (if vert-adj (+ cy vert-adj) cy)))
+    (magick:with-pixel-wand (background)
+      (when rotate (magick:rotate-image wand background rotate)))
+    (magick:with-drawing-wand (dw)
+      ;; vert
+      (magick:draw-line dw 0 y w y)
+      ;; horz
+      (magick:draw-line dw x 0 x h)
+      (magick:draw-image wand dw))))
+
+(defun axes (img &rest args &key vert-adj horz-adj rotate)
+  (declare (ignorable vert-adj horz-adj rotate))
+  (magick:with-magick-wand (wand :load img)
+    (apply #'axes-image wand args)
+    (magick:write-image wand "x:")))
+
