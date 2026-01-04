@@ -78,63 +78,100 @@
 (defvar +dw-board-bindables+ '(make-line new-line m c conjugate reflectx
 			      intersection zpoint perpendicular point pcircle))
 
-(defmacro with-board ((&key (center '*center*)) &body body)
-  "evaluate BODY with +DW-BOARD-BINDABLES+ functions bound"
-  `(let ((center ,center))
-     (flet ((make-point (x y) (complex x y))
-	    (new-line (m c) (list m c))
-	    (point (r theta center)
-	      (complex (+ (x center) (* r (cos theta)))
-		       (- (y center) (* r (sin theta)))))
-	    (m (line) "slope" (car line))
-	    (c (line) "y-intercept" (cadr line)))
-       (flet ((make-line (p1 p2)
-		(unless (= (x p1) (x p2)) ; cant represent
-		  (let ((m (/ (- (y p2) (y p1)) (- (x p2) (x p1)))))
-		    (let ((c (cond ((= (x p1) 0) (y p1))
-				   ((= (x p2) 0) (y p2))
-				   (t (- (y p1) (* m (x p1)))))))
-		      (new-line m c)))))
-	      (conjugate (p1) (make-point (x p1) (- (* 2 (y center)) (y p1))))
-	      (reflecty (p)
-		(make-point (x p) (- (* 2 (y center)) (y p))))
-	      (reflectx (p)
-		(make-point (- (* 2 (x center)) (x p)) (y p)))
-	      (intersection (line1 line2) ; point
-		(destructuring-bind (m1 c1) line1
-		  (destructuring-bind (m2 c2) line2
-		    (unless (= m1 m2)  ; parallel lines dont intersect
-		      (let ((x (/ (- c1 c2) (- m2 m1))))
-			(make-point x (+ (* m1 x) c1)))))))
-	      (zpoint (line &aux (x (x center)))
-		;; point where `line' intersects "y axis"
-		(make-point x (+ (* (m line) x) (c line))))
-	      (perpendicular (line &optional (point center)) ; => new line
-		(new-line #1=(/ (- (m line)))
-			  (- (y point)
-			     (* (x point) #1#))))
-	      (pcircle (line radius)	; => point (on the circle)
-		"intersection of LINE (slope yintercept) on circle of RADIUS at CENTER"
-		;; (XQ - CX)^2 + (YQ - CY)^2  = R^2
-		;; (YQ - CY) = M *  (XQ - CX)
-		(destructuring-bind (M C) line
-		  (if (zerop M)
-		      (let* ((y3 c)
-			     (x3 (+ (x center)
-				    (sqrt (- (expt radius 2.0)
-					     (expt (abs (- Y3
-							   (y center)))
-						   2.0))))))
-			(make-point x3 y3))
-		      (let* ((x (+ (x center)
-				   (/ radius (sqrt (1+ (* M M))))))
-			     (y (+ C (* M x))))
-			(make-point x y))))))
-	 ,@body))))
+(defvar *center* #C(0 0))
+
+(defun make-point (x y)
+  (complex x y))
+
+(defun new-line (m c)
+   (list m c))
+
+(defun point (r theta &optional (center *center*))
+  (complex (+ (x center) (* r (cos theta)))
+	   (- (y center) (* r (sin theta)))))
+
+(defun m (line) "slope" (car line))
+(defun c (line) "y-intercept" (cadr line))
+
+(defun make-line (p1 p2)
+  (unless (= (x p1) (x p2)) ; cant represent
+    (let ((m (/ (- (y p2) (y p1)) (- (x p2) (x p1)))))
+      (let ((c (cond ((= (x p1) 0) (y p1))
+		     ((= (x p2) 0) (y p2))
+		     (t (- (y p1) (* m (x p1)))))))
+	(new-line m c)))))
+
+(defun conjugate (p1 &optional (center *center*))
+  (make-point (x p1) (- (* 2 (y center)) (y p1))))
+
+(defun reflecty (p &optional (center *center*))
+  (make-point (x p) (- (* 2 (y center)) (y p))))
+
+(defun reflectx (p &optional (center *center*))
+  (make-point (- (* 2 (x center)) (x p)) (y p)))
+
+(defun intersection (line1 line2) ; point
+  (destructuring-bind (m1 c1) line1
+    (destructuring-bind (m2 c2) line2
+      (unless (= m1 m2)  ; parallel lines dont intersect
+	(let ((x (/ (- c1 c2) (- m2 m1))))
+	  (make-point x (+ (* m1 x) c1)))))))
+
+(defun zpoint (line &optional (center *center*) &aux (x (x center)))
+  ;; point where `line' intersects "y axis"
+  (make-point x (+ (* (m line) x) (c line))))
+
+(defun perpendicular (line &optional (point *center*)) ; => new line
+  (new-line #1=(/ (- (m line)))
+	    (- (y point)
+	       (* (x point) #1#))))
+
+(defun pcircle (line radius &optional (center *center*)) ; => point (on the circle)
+  "intersection of LINE (slope yintercept) on circle of RADIUS at CENTER"
+  ;; (XQ - CX)^2 + (YQ - CY)^2  = R^2
+  ;; (YQ - CY) = M *  (XQ - CX)
+  (destructuring-bind (M C) line
+    (if (zerop M)
+	(let* ((y3 c)
+	       (x3 (+ (x center)
+		      (sqrt (- (expt radius 2.0)
+			       (expt (abs (- Y3
+					     (y center)))
+				     2.0))))))
+	  (make-point x3 y3))
+	(let* ((x (+ (x center)
+		     (/ radius (sqrt (1+ (* M M))))))
+	       (y (+ C (* M x))))
+	  (make-point x y)))))
+
+(eval-when (:compile-toplevel :load-toplevel :execute)
+(defun %with-board-flet-bindings (syms)
+  (loop for sym in syms
+	for sym-name = (symbol-name sym)
+	for shrii-sym = (find-symbol sym-name "SHRII")
+	do (assert (find shrii-sym +dw-board-bindables+))
+	do (assert (not (eql sym shrii-sym)))
+	collect `(,sym (&rest args) (apply #',shrii-sym args)))))
+
+#+nil
+(%with-board-flet-bindings '(cl:intersection cl:conjugate))
+
+(defmacro with-board ((&key (center '*center*) shadow) &body body)
+  "evaluate BODY with *CENTER* bound to CENTER.  BODY can use the
+functions listed in +DW-BOARD-BINDABLES+.  SHADOW if supplied should
+be a list of symbols (which do not belong to the SHRII package)
+which (nevertheless) have the same name as a symbol in the
++DW-BOARD-BINDABLES+ list.  These are bound via flet to call the
+corresponding function in the SHRII package during the execution of
+BODY."
+  `(let ((*center* ,center))
+     (flet ,(%with-board-flet-bindings shadow)
+       ,@body)))
 
 #||
 (with-board (:center #(200 200)) nil)
 (with-board () nil)
+(with-board (:center #(200 200) :shadow (cl:conjugate)) nil)
 ||#
 
 (defmacro plistify (list-of-symbols)
