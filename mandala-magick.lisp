@@ -324,3 +324,40 @@ identify s2.png&
     (apply #'axes-image wand args)
     (magick:write-image wand "x:")))
 
+(defun annot-point (dw point &optional text)
+  (let ((x  (x point)) (y (y point)))
+    (magick:draw-annotation dw x y
+			    (or text (format nil "~f,~f" x y)))))
+
+#+nil
+(with-wand (:wand-var *wand* :filename  ;; "x:"
+	    "/dev/shm/label.png"
+	    :height 500 :width 500 :ndiv 96
+	    :wand-args (:string "black"))
+  (let ((radius (/ *length* 2.3)))
+    (with-dw (dw)
+      (magick:with-pixel-wand (pw :string "goldenrod")
+	(magick:draw-set-stroke-color dw pw))
+      (loop for (a b c) in (shrii *center* radius :return-type 'triangles)
+	    do (draw-triangle dw a b c))
+      (let* ((plist (shrii *center* radius :return-type 'shrii:plist-points))
+	     (keys (loop for (key nil) on plist by #'cddr collect key)))
+	(magick:with-pixel-wand (pw :string "white")
+	  (magick:draw-set-stroke-color dw pw))
+	(magick:draw-set-font-family dw "Source Sans")
+	(magick:draw-set-font-size dw 18)
+	(loop for key in keys
+	      do (if (find key '(f p a j l g v m d))
+		     (with-cloned-dw (dw dw)
+		       (magick:draw-set-text-decoration dw :underline)
+		       (magick:with-pixel-wand (pw :string "skyblue")
+			 (magick:draw-set-stroke-color dw pw))
+		       (annot-point dw (getf plist key) (string key)))
+		     (annot-point dw (getf plist key) (string key)))))
+      (magick:draw-set-font-family dw "Courier New")
+      (magick:draw-set-font-size dw 13)
+      (let* ((plist (shrii (complex center-x center-y) radius :return-type 'shrii:plist)))
+	(loop for (key val) on plist by #'cddr
+	      if (search "LINE" (string key))
+	      do (destructuring-bind (m c) val
+		   (annot-point dw (complex 0 c) (string-downcase key))))))))
