@@ -33,7 +33,12 @@
    #:point
    #:pcircle
    "SHRII" "TRIANGLES" "PLIST" "KRAMA"
-   ))
+   "PLIST-POINTS"
+   #:A #:B #:C #:D #:E #:F #:G #:H #:I
+   #:J #:L #:M #:P #:Q #:R #:V #:X #:Y
+   #:s #:k #:o #:z #:w #:u #:n #:t1
+   #:line0 #:line3 #:line7 #:line10 #:side1 #:side2 #:line2 #:line8 #:line5 #:line4
+   #:side9 #:line6 #:side6 #:side8 #:side7 #:side3 #:line1 #:line9 #:side4 #:side5))
 (in-package "SHRII")
 
 (defvar +pi+ (coerce pi 'single-float))
@@ -136,8 +141,17 @@
   (cons 'list (loop for x in list-of-symbols append `(',x ,x))))
 
 
+;;; MODELING NOTES
+;;;
+;;; there are 11 lines lines0 to line10. line0 and line10 are tangent
+;;; at the top and bottom of the circle. there are nine triangles
+;;; ($t1..$t9) these have their bases on (line1..line9). [shrishtthi]
+;;; $t1 $t2 $t3 $t4 $t5 face downward $t7 $t8 $t9 face upward. each
+;;; triangle is also determined by a side (side1..side9) which is the
+;;; side adjacent to (line1..line9).
+
 (defun shrii (center radius &key return-type)
-  (check-type return-type (or null (member plist triangles krama)))
+  (check-type return-type (or null (member plist triangles krama plist-points)))
   (with-board (:center center)
     (let ((deg -19.43943)
 	  line0 line3 line7 line10 side1 side2 line2 line8 line5 line4
@@ -224,6 +238,12 @@
 	  s
 	  (setq m (intersection line4 side8))
 	  (setq n (intersection line5 side5))
+
+	  (when (eql return-type 'plist-points)
+	    (return-from shrii
+	      (plistify (#|F A G|# P J L V M D
+				     Q H G I R B A C F E X Y
+				     T1 O Z W U V S N K ))))
 
 	  (when (eql return-type 'triangles)
 	    (return-from shrii (list
