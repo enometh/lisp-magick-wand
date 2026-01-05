@@ -20,8 +20,8 @@
    "RADIANS-TO-DEGREES"
    "DEGREES-TO-RADIANS"
    "WITH-BOARD"
-   #:make-point
    #:new-line
+   #:new-point
    #:m
    #:c
    #:make-line
@@ -84,7 +84,7 @@
 
 (defvar *center* #C(0 0))
 
-(defun make-point (x y)
+(defun new-point (x y)
   (complex x y))
 
 (defun new-line (m c)
@@ -106,24 +106,24 @@
 	(new-line m c)))))
 
 (defun conjugate (p1 &optional (center *center*))
-  (make-point (x p1) (- (* 2 (y center)) (y p1))))
+  (new-point (x p1) (- (* 2 (y center)) (y p1))))
 
 (defun reflecty (p &optional (center *center*))
-  (make-point (x p) (- (* 2 (y center)) (y p))))
+  (new-point (x p) (- (* 2 (y center)) (y p))))
 
 (defun reflectx (p &optional (center *center*))
-  (make-point (- (* 2 (x center)) (x p)) (y p)))
+  (new-point (- (* 2 (x center)) (x p)) (y p)))
 
 (defun intersection (line1 line2) ; point
   (destructuring-bind (m1 c1) line1
     (destructuring-bind (m2 c2) line2
       (unless (= m1 m2)  ; parallel lines dont intersect
 	(let ((x (/ (- c1 c2) (- m2 m1))))
-	  (make-point x (+ (* m1 x) c1)))))))
+	  (new-point x (+ (* m1 x) c1)))))))
 
 (defun zpoint (line &optional (center *center*) &aux (x (x center)))
   ;; point where `line' intersects "y axis"
-  (make-point x (+ (* (m line) x) (c line))))
+  (new-point x (+ (* (m line) x) (c line))))
 
 (defun perpendicular (line &optional (point *center*)) ; => new line
   (new-line #1=(/ (- (m line)))
@@ -142,11 +142,11 @@
 			       (expt (abs (- Y3
 					     (y center)))
 				     2.0))))))
-	  (make-point x3 y3))
+	  (new-point x3 y3))
 	(let* ((x (+ (x center)
 		     (/ radius (sqrt (1+ (* M M))))))
 	       (y (+ C (* M x))))
-	  (make-point x y)))))
+	  (new-point x y)))))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
 (defun %with-board-flet-bindings (syms)
@@ -232,14 +232,14 @@ BODY."
   (with-ctx-slots ctx
     (with-board (:center center) ;fix multiple rebindings of `center'
       ;; T1=POINT0 = (POINT RADIUS (/ +PI+ 2) center)
-      (setq T1 (make-point (x center) (- (y center) radius)))
+      (setq T1 (new-point (x center) (- (y center) radius)))
       (let* ((rad (degrees-to-radians deg)))
 	(setq M (float (tan rad) 1.0))
 	(let* ((X (+ (x center)
 		     (sqrt (/ (* radius radius)
 			      (+ 1 (* M M))))))
 	       (Y (+ (y center) (* M (- x (x center))))))
-	  (SETQ Q (make-point X Y)))
+	  (SETQ Q (new-point X Y)))
 	(SETQ LINE0 (new-line 0 (y T1)))
 	(setq line10 (new-line 0 (y (CONJUGATE T1))))
 	(setq line3 (new-line 0 (y Q)))
