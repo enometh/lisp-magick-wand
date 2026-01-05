@@ -41,6 +41,7 @@
    #:side9 #:line6 #:side6 #:side8 #:side7 #:side3 #:line1 #:line9 #:side4 #:side5
    "CENTER" "RADIUS"
    "SHRII-CTX" "MAKE-SHRII-CTX" "WITH-CTX-SLOTS"
+   "SOLVE-SHRII" "CALL-SOLVER"
 ))
 (in-package "SHRII")
 
@@ -226,14 +227,10 @@ BODY."
 (with-ctx-slots $s1 line0)
 ||#
 
-(defun solve-shrii (center radius &key
-		    (ctx (make-shrii-ctx :center center :radius radius))
-		    (deg -19.43943))
+(defun solve-shrii (ctx &optional (deg -19.43943))
   "my 2014 construction based on a single parameter `M'"
-  (assert (= center (slot-value ctx 'center)))
-  (assert (= radius (slot-value ctx 'radius)))
-  (with-board (:center center) ;fix multiple rebindings of `center'
-    (with-ctx-slots ctx
+  (with-ctx-slots ctx
+    (with-board (:center center) ;fix multiple rebindings of `center'
       ;; T1=POINT0 = (POINT RADIUS (/ +PI+ 2) center)
       (setq T1 (make-point (x center) (- (y center) radius)))
       (let* ((rad (degrees-to-radians deg)))
@@ -289,9 +286,22 @@ BODY."
 	;; (isoceles '$t5  (zpoint line7) (intersection line5 side6))
 	ctx))))
 
+(defun call-solver (solver center radius &key
+		    (ctx (make-shrii-ctx :center center :radius radius)))
+  "SOLVER is a function that takes a SHRII-CTX initialized with CENTER and RADIUS and computes the remaining slots."
+  (if (slot-value ctx 'center)
+      (assert (= center (slot-value ctx 'center)))
+      (setf (slot-value ctx 'center) center))
+  (if (slot-value ctx 'radius)
+      (assert (= radius (slot-value ctx 'radius)))
+      (setf (slot-value 'ctx radius) radius))
+  (funcall solver ctx)
+  ctx)
+
 (defun shrii (center radius &key return-type)
+  "Obsolete"
   (check-type return-type (or null (member plist triangles krama plist-points)))
-  (let* ((ctx (solve-shrii center radius))
+  (let* ((ctx (call-solver #'solve-shrii center radius))
 	 (q (slot-value ctx 'q))
 	 (x (x q))
 	 (y (y q)))
