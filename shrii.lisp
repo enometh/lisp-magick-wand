@@ -39,6 +39,7 @@
    #:s #:k #:o #:z #:w #:u #:n #:t1
    #:line0 #:line3 #:line7 #:line10 #:side1 #:side2 #:line2 #:line8 #:line5 #:line4
    #:side9 #:line6 #:side6 #:side8 #:side7 #:side3 #:line1 #:line9 #:side4 #:side5
+   "CENTER" "RADIUS"
    "SHRII-CTX" "MAKE-SHRII-CTX" "WITH-CTX-SLOTS"
 ))
 (in-package "SHRII")
@@ -196,7 +197,11 @@ BODY."
     Q H G I R B A C F E
     s j k l o z w d u p v m n t1)))
 
-(defmacro defshriictx () `(defstruct shrii-ctx  ,@+shrii-params+))
+(defmacro defshriictx ()
+  `(defstruct (shrii-ctx (:predicate shrii-ctxp))
+     (center #C(0.0 0.0))
+     (radius 1.0)
+     ,@+shrii-params+))
 (defshriictx)
 
 #||
@@ -209,10 +214,10 @@ BODY."
 ||#
 
 (defmacro with-ctx-slots (ctx &body body)
-  `(with-slots ,(loop for slot-name in +shrii-params+
+  `(with-slots ,(loop for slot-name in `(center radius ,@+shrii-params+)
 		      collect slot-name)
        ,ctx
-     (declare (ignorable ,@+shrii-params+))
+     (declare (ignorable center radius ,@+shrii-params+))
      ,@body))
 
 #||
@@ -290,8 +295,8 @@ BODY."
 	 (q (slot-value ctx 'q))
 	 (x (x q))
 	 (y (y q)))
-    (with-board (:center center)
-      (with-ctx-slots ctx
+    (with-ctx-slots ctx
+      (with-board (:center center)
 	(when (eql return-type 'plist)
 	  (return-from shrii (plistify
 			      (line0 line3 line7 line10 side1 side2 line2 line8 line5 line4
