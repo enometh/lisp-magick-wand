@@ -38,7 +38,9 @@
    #:J #:L #:M #:P #:Q #:R #:V #:X #:Y
    #:s #:k #:o #:z #:w #:u #:n #:t1
    #:line0 #:line3 #:line7 #:line10 #:side1 #:side2 #:line2 #:line8 #:line5 #:line4
-   #:side9 #:line6 #:side6 #:side8 #:side7 #:side3 #:line1 #:line9 #:side4 #:side5))
+   #:side9 #:line6 #:side6 #:side8 #:side7 #:side3 #:line1 #:line9 #:side4 #:side5
+   "SHRII-CTX" "MAKE-SHRII-CTX" "WITH-CTX-SLOTS"
+))
 (in-package "SHRII")
 
 (defvar +pi+ (coerce pi 'single-float))
@@ -187,26 +189,57 @@ BODY."
 ;;; triangle is also determined by a side (side1..side9) which is the
 ;;; side adjacent to (line1..line9).
 
-(defun shrii (center radius &key return-type)
-  (check-type return-type (or null (member plist triangles krama plist-points)))
-  (with-board (:center center)
-    (let ((deg -19.43943)
-	  line0 line3 line7 line10 side1 side2 line2 line8 line5 line4
-	  side9 line6 side6 side8 side7 side3 line1 line9 side4 side5)
+(eval-when (:compile-toplevel :load-toplevel :execute)
+(defvar +shrii-params+
+  '(line0 line3 line7 line10 side1 side2 line2 line8 line5 line4
+    side9 line6 side6 side8 side7 side3 line1 line9 side4 side5
+    Q H G I R B A C F E
+    s j k l o z w d u p v m n t1)))
 
-      (let* ((POINT0 ;; +nil(POINT RADIUS (/ +PI+ 2) center)
-	      (make-point (x center) (- (y center) radius)))
-	     (rad (degrees-to-radians deg))
-	     (M (float (tan rad) 1.0))
-	     (X (+ (x center)
-		   (sqrt (/ (* radius radius)
-			    (+ 1 (* M M))))))
-	     (Y (+ (y center) (* M (- x (x center)))))
-	     Q H G I R B A C F E)
+(defmacro defshriictx () `(defstruct shrii-ctx  ,@+shrii-params+))
+(defshriictx)
 
-	(SETQ Q (make-point X Y))
-	(SETQ LINE0 (new-line 0 (y POINT0)))
-	(setq line10 (new-line 0 (y (CONJUGATE POINT0))))
+#||
+(defvar *shrii-ctx* nil)
+(defmacro defshriictxaccessors (&optional (var '*shrii-ctx*))
+  `(progn
+     ,@(loop for slot-name in +shrii-params+
+	     collect `(define-symbol-macro ,slot-name (slot-value ,var ',slot-name)))))
+(defshriictxaccessors)
+||#
+
+(defmacro with-ctx-slots (ctx &body body)
+  `(with-slots ,(loop for slot-name in +shrii-params+
+		      collect slot-name)
+       ,ctx
+     (declare (ignorable ,@+shrii-params+))
+     ,@body))
+
+#||
+(setq $s1 (make-shrii-ctx))
+(setf (slot-value $s1 'line0) 10)
+(with-ctx-slots $s1 line0)
+||#
+
+(defun solve-shrii (center radius &key
+		    (ctx (make-shrii-ctx :center center :radius radius))
+		    (deg -19.43943))
+  "my 2014 construction based on a single parameter `M'"
+  (assert (= center (slot-value ctx 'center)))
+  (assert (= radius (slot-value ctx 'radius)))
+  (with-board (:center center) ;fix multiple rebindings of `center'
+    (with-ctx-slots ctx
+      ;; T1=POINT0 = (POINT RADIUS (/ +PI+ 2) center)
+      (setq T1 (make-point (x center) (- (y center) radius)))
+      (let* ((rad (degrees-to-radians deg)))
+	(setq M (float (tan rad) 1.0))
+	(let* ((X (+ (x center)
+		     (sqrt (/ (* radius radius)
+			      (+ 1 (* M M))))))
+	       (Y (+ (y center) (* M (- x (x center))))))
+	  (SETQ Q (make-point X Y)))
+	(SETQ LINE0 (new-line 0 (y T1)))
+	(setq line10 (new-line 0 (y (CONJUGATE T1))))
 	(setq line3 (new-line 0 (y Q)))
 	;; (isoceles '$t3 (zpoint line10) $q)
 	(setq side3 (make-line (zpoint line10) Q))
@@ -245,19 +278,27 @@ BODY."
 	(setq E (intersection side6 side1))
 	(setq line4 (new-line 0 (y E)))
 	(setq side4 (make-line (zpoint line8) (intersection line4 side8)))
-	;; (isoceles ' $t4 (zpoint line8) (intersection line4 side8))
+	;; (isoceles '$t4 (zpoint line8) (intersection line4 side8))
 	(setq line5 (new-line 0 (y (intersection side9 side1))))
 	(setq side5 (make-line (zpoint line7) (intersection line5 side6)))
 	;; (isoceles '$t5  (zpoint line7) (intersection line5 side6))
+	ctx))))
 
+(defun shrii (center radius &key return-type)
+  (check-type return-type (or null (member plist triangles krama plist-points)))
+  (let* ((ctx (solve-shrii center radius))
+	 (q (slot-value ctx 'q))
+	 (x (x q))
+	 (y (y q)))
+    (with-board (:center center)
+      (with-ctx-slots ctx
 	(when (eql return-type 'plist)
 	  (return-from shrii (plistify
 			      (line0 line3 line7 line10 side1 side2 line2 line8 line5 line4
 				     side9 line6 side6 side8 side7 side3 line1 line9 side4 side5
-				     Q H G I R B A C F E X Y))))
-
-	(let (s j k l o z w d u p v m n t1)
-	  (setq t1 (zpoint line0))
+				     Q H G I R B A C F E X Y ))))
+	(let ()
+	  (assert (= t1 (zpoint line0)))
 	  (setq s (intersection line1 side1))
 	  r
 	  q
