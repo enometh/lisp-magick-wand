@@ -42,6 +42,7 @@
    "CENTER" "RADIUS"
    "SHRII-CTX" "MAKE-SHRII-CTX" "WITH-CTX-SLOTS"
    "SOLVE-SHRII" "CALL-SOLVER"
+   "*FLOAT-TOLERANCE*" "APPROX=" "VERIFY-SOLVED"
 ))
 (in-package "SHRII")
 
@@ -297,6 +298,68 @@ BODY."
       (setf (slot-value 'ctx radius) radius))
   (funcall solver ctx)
   ctx)
+
+(defvar *float-tolerance* 0.0005)
+
+(defun approx= (a b)
+  (< (abs (- a b)) *float-tolerance*))
+
+(defmacro csetq (var form &rest more-forms)
+  "If VAR (symbol) is non-NIL, check if it is approximately equal to
+FORM (evaluated), otherwise if VAR is NIL, set it to FORM (evaluated)."
+  (check-type var symbol)
+  `(let ((.val. ,form))
+     (if ,var
+	 (unless (and (approx= (x ,var) (x .val.))
+		      (approx= (y ,var) (y .val.)))
+	   (with-simple-restart (cont "Cont")
+	     (error "~A set to ~A but expected to be ~A" ',var ,var .val.)))
+	 (setq ,var .val.))
+     ,@(and more-forms `((csetq ,@more-forms)))))
+
+#+nil
+(let ((a 1.05) (*float-tolerance* 0.01))
+  (csetq a 1.04))
+
+#+nil
+(slynk:eval-in-emacs '(put 'csetq 'common-lisp-indent-function nil))
+
+(defun verify-solved (shrii-ctx)
+  (with-ctx-slots shrii-ctx
+    (with-board (:center center)
+      (csetq t1 (zpoint line0))
+      (csetq s (intersection line1 side1))
+      (csetq r (intersection line2 side2))
+      (csetq q (intersection line3 side3))
+      (csetq j (intersection line7 side7))
+      (csetq k (intersection line8 side8))
+      (csetq l (intersection line9 side9))
+      (csetq o (zpoint line10))
+      (csetq z (zpoint line8))
+
+      (csetq a (intersection line8 side9))
+      (csetq a (intersection line8 side3))
+      (csetq a (intersection side3 side9))
+
+      (csetq h (intersection side3 side8))
+      (csetq h (intersection line7 side3))
+      (csetq h (intersection line7 side8))
+
+      (csetq b (intersection line7 side9))
+      (csetq b (intersection line7 side2))
+      (csetq b (intersection side2 side9))
+
+      ;; todo
+      (setq w (zpoint line6))
+      (setq d (intersection line5 side9))
+      (setq U (zpoint line3))
+      (setq p (intersection line6 side2))
+      (setq v (zpoint line1))
+
+      (setq s (intersection line1 side1))
+      ;; todo
+      (setq m (intersection line4 side8))
+      (setq n (intersection line5 side5)))))
 
 (defun shrii (center radius &key return-type)
   "Obsolete"
