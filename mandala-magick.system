@@ -19,6 +19,8 @@
   :depends-on ("magick")
   :components ("shrii"
 	       "mandala-magick"
+	       (:module "other"
+		:components ("huet"))
 	       ))
 #+nil
 (mk:oos :mandala-magick :load :compile-during-load t)
