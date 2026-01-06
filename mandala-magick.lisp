@@ -132,8 +132,37 @@ prints DEBUG-MSG: [ITEM=VAL ...] on standard output"
 	do (magick:draw-line dw u v x y)
 	finally (magick:draw-line dw x y (car (car points)) (cadr (car points)))))
 
+(defun c->l (list-of-complex-numbers &rest rest)
+  "accept a list of points in a variety of formats and convert to a
+canonical list of the form ((x y)...). input points may in the
+following forms: (x . y) #C(x y) #(x y).
+a single number x is interepreted as the point (x 0)."
+  (flet ((proc (c)
+	   (etypecase c
+	      (number (list (x c) (y c)))
+	      (vector (assert (= (length c) 2))
+		      (coerce c 'list))
+	      (cons
+		   (if (and (cdr c) (atom (cdr c)))
+		       (list (car c) (cdr c))
+		       c)))))
+    (if (atom list-of-complex-numbers)
+	(if rest
+	    (c->l (cons list-of-complex-numbers rest))
+	    (proc list-of-complex-numbers))
+	(mapcar #'proc list-of-complex-numbers))))
+
+#||
+(equal (c->l '(1 2)) '((1 0) (2 0)))
+(equal (c->l '((1 2) (2 3))) '((1 2) (2 3)))
+(equal (c->l #C(0 0)) '(0 0))
+(equal (c->l 1) '(1 0))
+(equal (c->l '(#C(0 0) (2 3) (1 . 3) 4)) '((0 0) (2 3) (1 3) (4 0)))
+||#
+
 (defun draw-connect-points (dw points &key (close t))
   (magick:draw-path-start dw)
+  (setq points (c->l points))
   (destructuring-bind (u  v) (car points)
     (magick:draw-path-move-to-absolute dw u v)
     (loop for (x y) in (cdr points)
