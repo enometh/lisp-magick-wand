@@ -132,13 +132,13 @@ prints DEBUG-MSG: [ITEM=VAL ...] on standard output"
 	do (magick:draw-line dw u v x y)
 	finally (magick:draw-line dw x y (car (car points)) (cadr (car points)))))
 
-(defun draw-connect-points (dw points)
+(defun draw-connect-points (dw points &key (close t))
   (magick:draw-path-start dw)
   (destructuring-bind (u  v) (car points)
     (magick:draw-path-move-to-absolute dw u v)
     (loop for (x y) in (cdr points)
 	  do (magick:draw-path-line-to-absolute dw x y))
-    (magick:draw-path-close dw)
+    (when close (magick:draw-path-close dw))
     (magick:draw-path-finish dw)))
 
 (defun draw-triangle (dw p1 p2 p3)
