@@ -237,36 +237,40 @@ a single number x is interepreted as the point (x 0)."
 		       (loop for p in (list p1 p2 p3)
 			     collect (list (x p) (y p)))))
 
-(defun draw-shrii (dw center radius)
-  (magick:with-cloned-drawing-wand (dw dw)
-    (magick:with-pixel-wands ((pw-black :string "black")
-			      (pw-col1 :string "yellow")
-			      (pw-col2 :string "blue")
-			      (pw-col3 :string "gray")
-			      (pw-col4 :string "cyan")
-			      (pw-col5 :string "orange")
-			      (pw-col6 :string "red"))
+(defun draw-shrii-ctx-trikonas (dw shrii-ctx)
+  (loop for (a b c) in (retrieve-9-trikonas shrii-ctx)
+	do (draw-triangle dw a b c)))
 
-      #+nil
-      (loop for (a b c) in (shrii center radius :return-type 'triangles)
-	    do (draw-triangle dw a b c))
+(defun draw-shrii-ctx-cakra-list-1 (dw ctx list)
+  ;; list is a list of points that outline right hand side only the
+  ;; particular cakra
+  (with-board (:center (slot-value ctx 'center))
+    (loop for (p0 p1 p2) = list then x  for x on (cddr list) by #'cddr
+	  for (q0 q1 q2) =
+	  (mapcar (lambda (p)
+		    (complex (- (* 2 (x (slot-value ctx 'center)))
+				(x p))
+			     (y p)))
+		  (list p0 p1 p2))
+	  do
+	  (draw-connect-points dw (list p0 p1 p2))
+	  (draw-connect-points dw (list q0 q1 q2)))))
 
-      ;;#+nil
-      (loop for list in (shrii center radius)
-	    for col in (list pw-col2 pw-col6 pw-col2 pw-col6 pw-col2)
+(defun draw-shrii-ctx-cakras (dw shrii-ctx)
+  (magick:with-pixel-wands ((blue :string "blue")
+			    (red :string "red"))
+    (with-cloned-dw (dw dw)
+      (loop for list in (retrieve-5-cakras shrii-ctx)
+	    for col in (list red blue red blue red)
 	    do
 	    (magick:draw-set-fill-color dw col)
-	    (magick:draw-set-stroke-color dw pw-black)
-	    (loop for (p0 p1 p2) = list then x  for x on (cddr list) by #'cddr
-		  for (q0 q1 q2) =
-		  (mapcar (lambda (p)
-			    (complex (- (* 2 (x center)) (x p)) (y p)))
-			  (list p0 p1 p2))
-		  do
-		  (draw-triangle dw p0 p1 p2)
-		  (draw-triangle dw q0 q1 q2)))
+	    (magick:draw-set-stroke-color dw col)
+	    (draw-shrii-ctx-cakra-list-1 dw shrii-ctx list)))))
 
-      (magick:draw-image *wand* dw))))
+(defun draw-shrii (dw center radius)
+  (let ((ctx (call-solver #'solve-shrii center radius)))
+    #+nil(draw-shrii-ctx-trikonas dw ctx)
+    (draw-shrii-ctx-cakras dw ctx)))
 
 (defun draw-petal (dw radius1 radius2 alpha phi center)
   (assert (< radius1 radius2))
