@@ -1,0 +1,18 @@
+#+title: mandala magick
+#+author: madhu
+#+email: enometh@meer.net
+* mandala-magick
+
+A construction of the Sri Yantra (which I devised in 2014) presented
+via Common Lisp with ImageMagick(R) along with a framework for
+investigating similar geometric constructions
+
+Manḍala (skt). (मण्डल):  Round, Circular.
+Magick: ImageMagick® (2D image processing software)
+
+DISCLAIMER: This project has no connections with the occult.  Both (1)
+The name of the software and (2) any possible historical associations
+to the occult of the geometric objects under investigation do not in
+any way reflect or imply any connection with the occult and does not
+and should not in any constitute the endorsement or promotion any
+satanic rituals or practices.
