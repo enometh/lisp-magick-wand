@@ -7,7 +7,7 @@
 ;;;   Copyright (C) 2025 Madhu.  All Rights Reserved.
 ;;;
 ;;; (SHRII CENTER RADIUS) a new construction of the shri yantra
-;;; parameterised on a single angle (19.34 degrees), devised in
+;;; parameterised on a single angle (-19.43943 degrees), devised in
 ;;; feb-march 2014, which produces the coordinates of the triangles.
 ;;;
 (defpackage "SHRII"
@@ -92,9 +92,11 @@
 (defun new-line (m c)
    (list m c))
 
+; if Y axis grows downwards. the point has to be transformed before it
+; can be rendered.
 (defun point (r theta &optional (center *center*))
   (complex (+ (x center) (* r (cos theta)))
-	   (- (y center) (* r (sin theta)))))
+	   (+ (y center) (* r (sin theta)))))
 
 (defun m (line) "slope" (car line))
 (defun c (line) "y-intercept" (cadr line))
@@ -230,18 +232,13 @@ BODY."
 ||#
 
 (defun solve-shrii (ctx &optional (deg -19.43943))
-  "my 2014 construction based on a single parameter `M'"
+  "my 2014 construction based on a single parameter `Q'"
   (with-ctx-slots ctx
     (with-board (:center center) ;fix multiple rebindings of `center'
       ;; T1=POINT0 = (POINT RADIUS (/ +PI+ 2) center)
-      (setq T1 (new-point (x center) (- (y center) radius)))
-      (let* ((rad (degrees-to-radians deg)))
-	(setq M (float (tan rad) 1.0))
-	(let* ((X (+ (x center)
-		     (sqrt (/ (* radius radius)
-			      (+ 1 (* M M))))))
-	       (Y (+ (y center) (* M (- x (x center))))))
-	  (SETQ Q (new-point X Y)))
+      (setq t1 (point radius (/ +pi+ 2)))
+      (setq q (reflecty (point radius (degrees-to-radians deg))))
+      (progn
 	(SETQ LINE0 (new-line 0 (y T1)))
 	(setq line10 (new-line 0 (y (CONJUGATE T1))))
 	(setq line3 (new-line 0 (y Q)))
