@@ -69,6 +69,7 @@ prints DEBUG-MSG: [ITEM=VAL ...] on standard output"
 			    (width '*width*)
 			    (wand-args '(:string "lightblue"))
 			    (filename '*filename*)
+			    dry-run
 			    &allow-other-keys)
 		     &body body)
   `(macrolet ((with-dw ((dw-var) &body body)
@@ -87,7 +88,8 @@ prints DEBUG-MSG: [ITEM=VAL ...] on standard output"
      (with-dims (,@args)
        (magick:with-magick-wand (,wand-var :create ,width ,height ,@wand-args)
 	 (multiple-value-prog1 (progn ,@body)
-	   (magick:write-image ,wand-var ,filename))))))
+	   (unless ,dry-run
+	     (magick:write-image ,wand-var ,filename)))))))
 
 (defun draw-circle (dw center radius0)
   (let* ((center-x (x center))
