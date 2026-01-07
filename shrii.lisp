@@ -44,6 +44,9 @@
    "SOLVE-SHRII" "CALL-SOLVER"
    "*FLOAT-TOLERANCE*" "APPROX=" "VERIFY-SOLVED"
    "RETRIEVE-5-CAKRAS" "RETRIEVE-9-TRIKONAS"
+   "CLIP-FRAME" "GET-TRANSFORM-CTX-CLIP-FRAMES" "MAKE-CLIP-FRAME"
+   "TRANSFORM-CTX" "GET-TRANSFORM-CTX" "WITH-TRANSFORM-CTX"
+   "TRANSFORMP" "TRANSFORML" "TRANSFORM-SHRII-CTX"
 ))
 (in-package "SHRII")
 
@@ -93,10 +96,10 @@
    (list m c))
 
 ; if Y axis grows downwards. the point has to be transformed before it
-; can be rendered.
+; can be rendered. see WITH-BOARD.
 (defun point (r theta &optional (center *center*))
-  (complex (+ (x center) (* r (cos theta)))
-	   (+ (y center) (* r (sin theta)))))
+  (new-point (+ (x center) (* r (cos theta)))
+	     (+ (y center) (* r (sin theta)))))
 
 (defun m (line) "slope" (car line))
 (defun c (line) "y-intercept" (cadr line))
@@ -171,7 +174,35 @@ be a list of symbols (which do not belong to the SHRII package)
 which (nevertheless) have the same name as a symbol in the
 +DW-BOARD-BINDABLES+ list.  These are bound via flet to call the
 corresponding function in the SHRII package during the execution of
-BODY."
+BODY.
+
+The polar representation of (POINT) on a rectangular board of length w
+and side h centered at center (cx,cy) implies a coordinate system with
+these corners (t:top l:left b:bottom r:right)
+
+tl: cx-w/2,cy+h/2           cx,cy+h/2    tr: cx+w/2,cy+h/2
+    cx-w/2,cy            c: cx,cy            cx+w/2,cy
+bl: cx-w/2,cy-h/2           cx,cy-h/2    br: cx+w/2,cy-h/2
+
+To render these points on, say, a canvas with corners tl: (0,0)
+tr: (0,w) bl: (0,h) br: (w,h) centered at c, one would have to use a
+transform-ctx to transform the points. in this case (sx sy tx ty)
+== (1 -1 0 0). e.g.
+
+(let ((w 600) (h 400) (c #C(300 200)))
+  (with-board (:center c)
+    (get-transform-ctx c	   ; center of board coordinate system
+		       (new-point (- (x c) (/ w 2)) (+ (y c) (/ h 2))) ;tl
+		       (new-point (+ (x c) (/ w 2)) (+ (y c) (/ h 2))) ;tr
+		       c   ; center of final display coordinate system
+		       (new-point 0 0)	;tl
+		       (new-point w 0)	;tr
+		       ))) ; (1 -1 0 0)
+
+(let ((p (new-point 100 250)))
+  (with-transform-ctx '(-1 -1 0 0)
+    (transformp p))) ;#C(-100 -250) to plot on the canvas
+"
   `(let ((*center* ,center))
      (flet ,(%with-board-flet-bindings shadow)
        ,@body)))
@@ -206,6 +237,7 @@ BODY."
   `(defstruct (shrii-ctx (:predicate shrii-ctxp))
      (center #C(0.0 0.0))
      (radius 1.0)
+     transform-ctx ;;(transform-ctx '(1 1 0 0))
      ,@+shrii-params+))
 (defshriictx)
 
@@ -225,11 +257,103 @@ BODY."
      (declare (ignorable center radius ,@+shrii-params+))
      ,@body))
 
+
+
 #||
 (setq $s1 (make-shrii-ctx))
 (setf (slot-value $s1 'line0) 10)
 (with-ctx-slots $s1 line0)
 ||#
+
+;;;
+;;; transformations
+;;;
+
+(defun get-transform-ctx (c1 tl1 tr1 c2 tl2 tr2)
+  "Return a transform-ctx of the form (sx sy tx ty) which will transform
+from a frame specified by points center c1 top-left tl1 top-right tr1,
+to a frame specified similarly by points c2 tl2 tr2.
+e.g: ndc:
+    -1,1           1,1
+            0,0
+    -1,-1          1,-1
+port:
+    0,0            w,0
+          w/2,h/2
+    0,h            w,h
+(get-transform-ctx #C(0 0) #C(-1 1) #C(1 1)
+                   #C(200 200) #C(0 0) #C(400 0)) ;=> (200 -200 200 200)
+"
+  (assert (= (y tl1) (y tr1)))
+  (assert (= (y tl2) (y tr2)))
+  (let* ((w1 (- (x tr1) (x tl1)))
+	 (h1 (* 2 (- (y c1) (y tl1))))
+	 (w2 (- (x tr2) (x tl2)))
+	 (h2 (* 2 (- (y c2) (y tl2))))
+	 (sx (/ w2 w1))
+	 (sy (/ h2 h1))
+	 (tx (- (x c2) (* (x c1) sx)))
+	 (ty (- (y c2) (* (y c1) sy))))
+    (list sx sy tx ty)))
+
+;; instead of computing the center, specify 3 of 4 corners of the two
+;; rectangles
+(defstruct (clip-frame (:type list)) tl bl tr)
+
+(defun get-transform-ctx-clip-frames (old-clipframe new-clipframe)
+  (destructuring-bind (tl1 bl1 tr1) old-clipframe
+    (let ((w1 (- (x tr1) (x tl1)))
+	  (h1 (- (y bl1) (y tl1))))
+      (destructuring-bind (tl2 bl2 tr2) new-clipframe
+	(let ((w2 (- (x tr2) (x tl2)))
+	      (h2 (- (y bl2) (y tl2))))
+	  (let ((c1 (new-point (+ (x tl1) (/ w1 2))
+			       (+ (y tl1) (/ h1 2))))
+		(c2 (new-point (+ (x tl2) (/ w2 2))
+			       (+ (y tl2) (/ h2 2)))))
+	    (get-transform-ctx c1 tl1 tr1 c2 tl2 tr2)))))))
+
+(defmacro with-transform-ctx (transform-ctx &body body)
+  "A transform context is a list (sx sy tx ty) that specifies the
+horizontal and vertical scaling and translation factors respectively."
+  `(destructuring-bind (sx sy tx ty) ,transform-ctx
+     (labels ((translatep (p)
+		(new-point (+ tx (x p)) (+ ty (y p))))
+	      (scalep (p)
+		(new-point (* sx (x p)) (* sy (y p))))
+	      (transformp (p)
+		(translatep (scalep p)))
+	      (transforml (l)
+		(destructuring-bind (m c) l ;; y-intercept = m * 0 + c
+		  (let ((d (transformp (new-point 0 c))))
+		    (if (zerop m)
+			(new-line m (y d))
+			;; 0 = x-intercept * m + c
+			(let ((e (transformp (new-point (/ (- c) m) 0))))
+			  (make-line d e)))))))
+       ,@body)))
+
+(defun transform-shrii-ctx (ctx transform-ctx &optional
+			    (ret (copy-shrii-ctx ctx)))
+  "Transform slots of SHRII-CTX (which are specified in some
+device coordinate system) to the coordinate system indicated by
+TRANSFORM-CTX which is a list (sx sy tx ty) which specifies the
+horizontal and vertical scaling and translation factors"
+  (with-transform-ctx transform-ctx
+    (setf (slot-value ret 'center)
+	  (translatep (slot-value ctx 'center)))
+    (setf (slot-value ret 'radius)
+	  (y (translatep
+	      (new-point 0 (slot-value ctx 'radius)))))
+    (loop for i in +shrii-params+
+	  for val = (slot-value ctx i)
+	  do (cond ((null val) (assert (null (slot-value ret i))))
+		   (t (setf (slot-value ret i)
+			    (if (or (search "LINE" (string i))
+				    (search "SIDE" (string i)))
+				(transforml val)
+				(transformp val)))))))
+  ret)
 
 (defun solve-shrii (ctx &optional (deg -19.43943))
   "my 2014 construction based on a single parameter `Q'"
@@ -286,7 +410,12 @@ BODY."
 	ctx))))
 
 (defun call-solver (solver center radius &key
-		    (ctx (make-shrii-ctx :center center :radius radius)))
+		    transform-ctx
+		    (ctx (apply #'make-shrii-ctx :center center
+				:radius radius
+				(if transform-ctx
+				    `(:transform-ctx ,transform-ctx)))))
+
   "SOLVER is a function that takes a SHRII-CTX initialized with CENTER and RADIUS and computes the remaining slots."
   (if (slot-value ctx 'center)
       (assert (= center (slot-value ctx 'center)))
@@ -295,7 +424,10 @@ BODY."
       (assert (= radius (slot-value ctx 'radius)))
       (setf (slot-value 'ctx radius) radius))
   (funcall solver ctx)
-  ctx)
+  (let ((transform-ctx (slot-value ctx 'transform-ctx)))
+    (when (and transform-ctx (not (equal transform-ctx '(1 1 0 0))))
+      (transform-shrii-ctx ctx transform-ctx ctx))
+    ctx))
 
 (defvar *float-tolerance* 0.0005)
 
@@ -429,10 +561,10 @@ FORM (evaluated), otherwise if VAR is NIL, set it to FORM (evaluated)."
 		  (zpoint line7) (zpoint line6))
 	    (list (zpoint line5) (intersection side9 line5) (zpoint line6))))))
 
-(defun shrii (center radius &key return-type)
+(defun shrii (center radius &key return-type transform-ctx)
   "Obsolete"
   (check-type return-type (or null (member plist triangles krama plist-points)))
-  (let* ((ctx (call-solver #'solve-shrii center radius))
+  (let* ((ctx (call-solver #'solve-shrii center radius :transform-ctx transform-ctx))
 	 (q (slot-value ctx 'q))
 	 (x (x q))
 	 (y (y q)))
