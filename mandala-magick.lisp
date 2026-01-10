@@ -146,6 +146,16 @@ prints DEBUG-MSG: [ITEM=VAL ...] on standard output"
 (with-wand (:dry-run t :height 322 :width 322) (transform-ndcp #C(.3 -.4)))
 ||#
 
+(defun get-wand-transform-ctx ()
+  (get-transform-ctx *center*
+		     (new-point (- (x *center*) (/ *width* 2)) (+ (y *center*) (/ *height* 2)))
+		     (new-point (+ (x *center*) (/ *width* 2)) (+ (y *center*) (/ *height* 2)))
+		     *center*
+		     (new-point 0 0)
+		     (new-point *width* 0)))
+#+nil
+(with-wand (:dry-run t)
+  (get-wand-transform-ctx))
 
 
 ;;; ----------------------------------------------------------------------
@@ -267,8 +277,8 @@ a single number x is interepreted as the point (x 0)."
 	    (magick:draw-set-stroke-color dw col)
 	    (draw-shrii-ctx-cakra-list-1 dw shrii-ctx list)))))
 
-(defun draw-shrii (dw center radius)
-  (let ((ctx (call-solver #'solve-shrii center radius)))
+(defun draw-shrii (dw center radius &key transform-ctx)
+  (let ((ctx (call-solver #'solve-shrii center radius :transform-ctx transform-ctx)))
     #+nil(draw-shrii-ctx-trikonas dw ctx)
     (draw-shrii-ctx-cakras dw ctx)))
 
@@ -375,7 +385,8 @@ a single number x is interepreted as the point (x 0)."
       (draw-circle dw *center* radius2)
       (draw-ndala-petal dw 8 radius0 radius1 *center*)
       (draw-ndala-petal dw 16 radius1 radius2 *center*)
-      (draw-shrii dw (complex center-x center-y) radius0)
+      (draw-shrii dw (complex center-x center-y) radius0
+		  :transform-ctx (get-wand-transform-ctx))
       (loop for r from (+ radius2 *adiv*) by (/ *adiv* 3) repeat 3
 	    do (draw-circle dw *center* r))
       ;;    (magick:draw-line dw 0 (/ *height* 2) *width* (/ *height* 2))
@@ -431,13 +442,16 @@ identify s2.png&
 	    "/dev/shm/label.png"
 	    :height 500 :width 500 :ndiv 96
 	    :wand-args (:string "black"))
-  (let ((radius (/ *length* 2.3)))
+  (let ((radius (/ *length* 2.3))
+	(transform-ctx (get-wand-transform-ctx)))
     (with-dw (dw)
       (magick:with-pixel-wand (pw :string "goldenrod")
 	(magick:draw-set-stroke-color dw pw))
-      (loop for (a b c) in (shrii *center* radius :return-type 'triangles)
+      (loop for (a b c) in (shrii *center* radius :return-type 'triangles
+				  :transform-ctx transform-ctx)
 	    do (draw-triangle dw a b c))
-      (let* ((plist (shrii *center* radius :return-type 'shrii:plist-points))
+      (let* ((plist (shrii *center* radius :return-type 'shrii:plist-points
+			   :transform-ctx transform-ctx))
 	     (keys (loop for (key nil) on plist by #'cddr collect key)))
 	(magick:with-pixel-wand (pw :string "white")
 	  (magick:draw-set-stroke-color dw pw))
