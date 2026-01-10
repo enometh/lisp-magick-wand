@@ -146,6 +146,17 @@ prints DEBUG-MSG: [ITEM=VAL ...] on standard output"
 (with-wand (:dry-run t :height 322 :width 322) (transform-ndcp #C(.3 -.4)))
 ||#
 
+(defun get-wand-ndc-transform-ctx ()
+  (get-transform-ctx  (new-point 0 0)
+		      (new-point -1 1) (new-point 1 1)
+		      *center*
+		      (new-point 0 0)
+		      (new-point *width* 0)))
+
+#+nil
+(with-wand (:dry-run t)
+  (get-wand-ndc-transform-ctx))
+
 (defun get-wand-transform-ctx ()
   (get-transform-ctx *center*
 		     (new-point (- (x *center*) (/ *width* 2)) (+ (y *center*) (/ *height* 2)))
@@ -156,6 +167,24 @@ prints DEBUG-MSG: [ITEM=VAL ...] on standard output"
 #+nil
 (with-wand (:dry-run t)
   (get-wand-transform-ctx))
+
+(defmacro with-wand-transformed-coords ((var-list &key (ctx '(get-wand-transform-ctx))) &body body)
+  (labels ((make-1let (var new-var)
+	     `((,new-var (transformp ,var))
+	       (,var ,new-var)))
+	   (make-lets (vars new-vars body)
+	     `(let* ,(loop for v in vars for n in new-vars
+			   append (make-1let v n))
+		,@body)))
+    (let ((new-vars (mapcar (lambda (var) (gensym (string var))) var-list)))
+      `(with-transform-ctx ,ctx
+	 ,(make-lets var-list new-vars body)))))
+
+#+nil
+(with-wand (:dry-run t)
+  (let ((p1 #C(0 0)))
+    (with-wand-transformed-coords ((p1))
+      p1)))
 
 
 ;;; ----------------------------------------------------------------------
@@ -284,21 +313,20 @@ a single number x is interepreted as the point (x 0)."
 
 (defun draw-petal (dw radius1 radius2 alpha phi center)
   (assert (< radius1 radius2))
-  (with-board (:center center)
-    (let* ((phi/2 (/ phi 2))
-	   (angle1 (- alpha phi/2))
-	   (angle2 (+ alpha phi/2))
-	   (p0 (point radius1 angle1 center))
-	   (p1 (point radius1 angle2 center))
-	   (rx (- radius2 (* radius1 (cos phi/2))))
-	   (ry (* radius1 (sin phi/2))))
+  (let* ((phi/2 (/ phi 2))
+	 (angle1 (- alpha phi/2))
+	 (angle2 (+ alpha phi/2))
+	 (p0 (point radius1 angle1 center))
+	 (p1 (point radius1 angle2 center))
+	 (rx (- radius2 (* radius1 (cos phi/2))))
+	 (ry (* radius1 (sin phi/2))))
+    (with-wand-transformed-coords ((p0 p1))
       (magick:draw-path-start dw)
       (magick:draw-path-move-to-absolute dw (x p0) (y p0))
-      (progn
-	(magick:draw-path-elliptic-arc-absolute
-	 dw rx ry (- 180 (radians-to-degrees alpha :clamp-180 t )) nil nil (x p1) (y p1))
-	(magick:draw-path-elliptic-arc-absolute
-	 dw radius1 radius1 (radians-to-degrees alpha :clamp-180 t) nil t (x p0) (y p0)))
+      (magick:draw-path-elliptic-arc-absolute
+       dw rx ry (- 180 (radians-to-degrees alpha :clamp-180 t)) nil nil (x p1) (y p1))
+      (magick:draw-path-elliptic-arc-absolute
+       dw radius1 radius1 (radians-to-degrees alpha :clamp-180 t) nil t (x p0) (y p0))
       (magick:draw-path-close dw)
       (magick:draw-path-finish dw))))
 
