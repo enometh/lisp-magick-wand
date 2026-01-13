@@ -120,3 +120,100 @@ magick \( -size "${size}" -background none gradient:red-blue \) \
        -compose CopyOpacity -composite /tmp/ellipse-stroke.png
 ||#
 
+
+;;; ----------------------------------------------------------------------
+;;;
+;;; support for gradient stops
+;;;
+
+;; file:///home/madhu/tmp/doc/svg/REC-SVG11-20030114/pservers.html
+;; TODO
+;; Gradient offset values less than 0 (or less than 0%) are rounded up to 0%. Gradient offset values greater than 1 (or greater than 100%) are rounded down to 100%.
+;; It is necessary that at least two stops defined to have a gradient effect. If no stops are defined, then painting shall occur as if 'none' were specified as the paint style. If one stop is defined, then paint with the solid color fill using the color defined for that gradient stop.
+;; Each gradient offset value is required to be equal to or greater than the previous gradient stop's offset value. If a given gradient stop's offset value is not equal to or greater than all previous offset values, then the offset value is adjusted to be equal to the largest of all previous offset values.
+;; If two gradient stops have the same offset value, then the latter gradient stop controls the color value at the overlap point.
+
+(defstruct (stop (:type list)) color offset)
+(export '(make-stop stop-color stop-offset copy-stop))
+
+(defun offset->perc (num)
+  (flet ((clamp (n min max)
+	   (if (< n min)
+	       min
+	       (if (> n max)
+		   max
+		   n))))
+    (etypecase num
+      (number num); no checks
+      (string (let* ((1-len (1- (length num)))
+		     (percp (equal #\% (elt num 1-len)))
+		     *read-eval*
+		     (ret (read-from-string num t nil :end 1-len)))
+		(check-type ret (or integer float))
+		(clamp (if percp ret (* 100.0 ret))  0.0 100.0))))))
+
+(defun normalize-stops (stops)
+  (let (ret)
+    (flet ((push-stop (s)
+	     (assert (<= 0 (stop-offset s) 100))
+	     (when ret
+	       (assert (>= (stop-offset s) (stop-offset (car ret)))))
+	     (unless ret
+	       (unless (zerop (offset->perc (stop-offset s)))
+		 (push (make-stop :color (stop-color s) :offset 0) ret)))
+	     (push s ret)))
+      (loop for s in stops do
+	    (push-stop (make-stop :color (stop-color s)
+				  :offset (offset->perc (stop-offset s)))))
+      (when ret
+	(unless (= 100 (stop-offset (car ret)))
+	  (push-stop (make-stop :color (stop-color (car ret)) :offset 100)))))
+    (nreverse ret)))
+(export '(normalize-stops))
+
+#||
+(normalize-stops '(("white" 10) ("red" "95%") ("purple" 100)))
+(offset->perc "0.4")
+||#
+
+(defun init-clut (img stops &key (length 1000) (fillcolor "white")
+		  &aux (xdim 1))
+  (set-size img length xdim)
+  (read-image img (format nil "xc:~A" fillcolor))
+  (loop	for prev-s = nil then s
+	for s in (normalize-stops stops)
+	when prev-s do
+	(let ((dim (ceiling (* length (- (stop-offset s) (stop-offset prev-s)))
+			    100))
+	      (off (max 0 (round (1- (* length (stop-offset prev-s))) 100))))
+	  (with-magick-wand (new)
+	    (set-size new xdim dim)
+	    (read-image new (format nil "gradient:~A-~A"
+				    (stop-color prev-s)
+				    (stop-color s)))
+	    (with-pixel-wand (pw)
+	      (rotate-image new pw -90))
+	    ;;(set-image-alpha-channel new :off)
+	    (composite-image img new :over nil off 0)))))
+
+(defun gradient-compose-stops (grayscale-wand stops)
+  (magick:with-magick-wand (clut)
+    (init-clut clut (normalize-stops stops))
+    (magick:clut-image grayscale-wand clut :catrom)))
+
+(export '(init-clut gradient-compose-stops))
+
+#||
+(with-magick-wand (back)
+  (set-size back 800 400)
+  (read-image back "xc:white")
+  (with-cloned-magick-wands ((grad back))
+    (set-option grad "gradient:direction" "West")
+    (read-image grad "gradient:")
+    (gradient-compose-stops grad '(("#f60" "5%")  ("#ff6" "95%")))
+    (with-gradient-composition (dw :magick-wand back :fill-gradient grad
+				   :stroke-gradient "xc:black")
+      (draw-set-stroke-width dw 5)
+      (draw-rectangle dw 100 100 (+ 600 100) (+ 100 200))))
+  (write-image back "x:" #+nil "/dev/shm/1.png"))
+||#
