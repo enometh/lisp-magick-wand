@@ -500,3 +500,77 @@ identify s2.png&
 	      if (search "LINE" (string key))
 	      do (destructuring-bind (m c) val
 		   (annot-point dw (complex 0 c) (string-downcase key))))))))
+
+
+;;; ----------------------------------------------------------------------
+;;;
+;;; generate radial gradients based on hsv
+;;;
+
+(defun hsv-to-rgb-comp (h s v)		; dha?
+  (declare (type (integer 0 360) h)
+	   (type (integer 0 100) s v))
+  (let ((h (/ h 60.0)) (s (/ s 100.0)) (v (/ v 100.0)))
+    (multiple-value-bind (i f) (floor h)
+      (if (evenp i) (setq f (- 1 f)))
+      (let ((m (* v (- 1 s))) (n (* v (- 1 (* s f)))))
+	(mapcar (lambda (x) (floor (* x 255)))
+				      (ecase i
+					((0 6) (list v n m))
+					(1 (list n v m))
+					(2 (list m v n))
+					(3 (list m n v))
+					(4 (list n m v))
+					(5 (list v m n))))))))
+
+(defun hsv-to-rgb (h s v)
+  (let ((comp (hsv-to-rgb-comp h s v)))
+    ;;(format nil "#~{~2,'0x~}" comp)
+    (format nil "rgb(~{~a~^, ~})" comp)))
+
+(defun make-nstops (n h)
+  "Make N gradient stops for hue h of varying brightness (value)"
+  (assert (< h 360))
+  (loop for i from 0 to n
+	for percent = (* 100 (/ i n))
+	for percent-string = (format nil (if (integerp percent)
+					     "~D%"
+					     "~3,2F%")
+				     percent)
+	for s =  100
+	for v =  (floor (- 100 percent))
+	for color = (hsv-to-rgb h s v)
+	collect (magick:make-stop :color color :offset percent-string)))
+
+(defun make-nhues (m &optional (type :uniform) (random-state *random-state*))
+  (ecase type
+    (:uniform   (loop for i below m collect (floor (* i 360 (/ m)))))
+    (:random (loop repeat m collect (random 360 random-state)))))
+
+(defun make-mgradients-nstops (m n &optional (type :uniform))
+  (loop for h in (make-nhues m type)
+	collect (make-nstops n h)))
+
+#+nil
+(let ((nstops 6) (mgradients 18) (type :uniform))
+  (with-wand (:dry-run nil :ndiv mgradients)
+    (magick:set-size *wand* *width* *height*)
+    (let ((gradient-specs (make-mgradients-nstops mgradients nstops)))
+      (loop with y = 0 for i from 0 for x = (* i *adiv*)
+	    for colour in gradient-specs
+	    do (magick:with-cloned-magick-wand (grad *wand*)
+		 (magick:read-image grad "radial-gradient:black-gray")
+		 (magick:gradient-compose-stops grad colour)
+		 (magick:with-gradient-composition
+		     (dw :magick-wand *wand* :fill-gradient grad :stroke-gradient grad)
+		   (magick:draw-rectangle
+		    dw x y (+ x *adiv*) (+ y (/ *length* 2))))))
+      (loop with x = 0 for i from 0 for y = (+ (/ *length* 2) (* i *adiv* 1/2))
+	    for colour in gradient-specs
+	    do (magick:with-cloned-magick-wand (grad *wand*)
+		 (magick:read-image grad "radial-gradient:black-gray")
+		 (magick:gradient-compose-stops grad colour)
+		 (magick:with-gradient-composition
+		     (dw :magick-wand *wand* :fill-gradient grad :stroke-gradient grad)
+		   (magick:draw-rectangle
+		    dw x y (+ x *length*) (+ y *adiv*))))))))
