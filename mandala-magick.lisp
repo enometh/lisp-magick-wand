@@ -295,21 +295,25 @@ a single number x is interepreted as the point (x 0)."
 	  (draw-connect-points dw (list p0 p1 p2))
 	  (draw-connect-points dw (list q0 q1 q2)))))
 
-(defun draw-shrii-ctx-cakras (dw shrii-ctx)
-  (magick:with-pixel-wands ((blue :string "blue")
-			    (red :string "red"))
-    (with-cloned-dw (dw dw)
-      (loop for list in (retrieve-5-cakras shrii-ctx)
-	    for col in (list red blue red blue red)
-	    do
-	    (magick:draw-set-fill-color dw col)
-	    (magick:draw-set-stroke-color dw col)
+(defun draw-shrii-ctx-cakras (magick-wand shrii-ctx)
+  (magick:with-cloned-magick-wands ((blue magick-wand)
+				    (red magick-wand))
+    (magick:set-size blue (magick:get-image-width magick-wand) (magick:get-image-height magick-wand))
+    (magick:set-size red (magick:get-image-width magick-wand) (magick:get-image-height magick-wand))
+    (magick:read-image red "xc:red")
+    (magick:read-image blue "xc:blue")
+    (loop for list in (retrieve-5-cakras shrii-ctx)
+	  for col in (list red blue red blue red)
+	  do
+	  (magick:with-gradient-composition
+	      (dw :magick-wand magick-wand :fill-gradient col :stroke-gradient col)
 	    (draw-shrii-ctx-cakra-list-1 dw shrii-ctx list)))))
 
-(defun draw-shrii (dw center radius &key transform-ctx)
+(defun draw-shrii (magick-wand center radius &key transform-ctx)
   (let ((ctx (call-solver #'solve-shrii center radius :transform-ctx transform-ctx)))
-    #+nil(draw-shrii-ctx-trikonas dw ctx)
-    (draw-shrii-ctx-cakras dw ctx)))
+    #+nil
+    (with-dw (dw) (draw-shrii-ctx-trikonas dw ctx))
+    (draw-shrii-ctx-cakras magick-wand ctx)))
 
 (defun draw-petal (dw radius1 radius2 alpha phi center)
   (assert (< radius1 radius2))
@@ -330,15 +334,17 @@ a single number x is interepreted as the point (x 0)."
       (magick:draw-path-close dw)
       (magick:draw-path-finish dw))))
 
-(defun draw-ndala-petal (dw npetal radius1 radius2 center)
-  (with-cloned-dw (dw dw)
-    (magick:with-pixel-wand (pw :string "red")
-      (magick:draw-set-fill-color dw pw)
-      (magick:draw-set-stroke-color dw pw))
+(defun draw-ndala-petal (magick-wand npetal radius1 radius2 center)
+  (magick:with-cloned-magick-wands ((red magick-wand))
+    (magick:set-size red (magick:get-image-width magick-wand) (magick:get-image-height magick-wand))
+    (magick:read-image red "xc:red")
     (loop with phi = (/ (* +pi+ 2 ) npetal)
 	  for i below (/ npetal 1)
 	  for angle = (* i phi)
-	  do (draw-petal dw radius1 radius2 angle phi center))))
+	  do (magick:with-gradient-composition (dw :magick-wand magick-wand
+						   :fill-gradient red
+						   :stroke-gradient red)
+	       (draw-petal dw radius1 radius2 angle phi center)))))
 
 (defun draw-quadrangle (dw center h gap)
   "h from center"
@@ -403,18 +409,19 @@ a single number x is interepreted as the point (x 0)."
 
 #+nil
 (with-wand (:wand-var *wand* :filename "x:" :height 800 :width 800 :ndiv 96)
-  (with-dw (dw)
-    (%dgrid dw 96 96)
-    (let* ((radius0 (* 48/2 *adiv*))
-	   (radius1 (+ radius0 (* 11 *adiv*)))
-	   (radius2 (+ radius0 (* 20 *adiv*))))
+  (let* ((radius0 (* 48/2 *adiv*))
+	 (radius1 (+ radius0 (* 11 *adiv*)))
+	 (radius2 (+ radius0 (* 20 *adiv*))))
+    (with-dw (dw)
+      (%dgrid dw 96 96)
       (draw-circle dw *center* radius0)
       (draw-circle dw *center* radius1)
-      (draw-circle dw *center* radius2)
-      (draw-ndala-petal dw 8 radius0 radius1 *center*)
-      (draw-ndala-petal dw 16 radius1 radius2 *center*)
-      (draw-shrii dw (complex center-x center-y) radius0
+      (draw-circle dw *center* radius2))
+    (draw-ndala-petal *wand* 8 radius0 radius1 *center*)
+    (draw-ndala-petal *wand* 16 radius1 radius2 *center*)
+    (draw-shrii *wand* (complex center-x center-y) radius0
 		  :transform-ctx (get-wand-transform-ctx))
+    (with-dw (dw)
       (loop for r from (+ radius2 *adiv*) by (/ *adiv* 3) repeat 3
 	    do (draw-circle dw *center* r))
       ;;    (magick:draw-line dw 0 (/ *height* 2) *width* (/ *height* 2))
