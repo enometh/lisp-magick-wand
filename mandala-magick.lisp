@@ -97,55 +97,6 @@ prints DEBUG-MSG: [ITEM=VAL ...] on standard output"
 ;;; transforms from normalized device coordinates
 ;;;
 
-#+nil
-(defun transform-ndc (dw)
-  "Buggy"
-  (magick:draw-translate dw (/ *width* 2)  (/ *height* 2))
-  (magick:draw-scale dw (/ *width* 2) (- (/ *height* 2)))
-    ;; stroke length has to be 0! it's also scaled!
-  (magick:draw-set-stroke-width dw 0))
-
-(defun transform-ndc (dw)
-  "Still Buggy"
-  (cffi:with-foreign-object (p 'magick:magick-affine-matrix)
-    (magick:get-affine-matrix p)
-    (let ((sx (/ *width* 2.0d0)) (sy (/ *height* -2.0d0))
-	  (tx (/ *width* 2.0d0)) (ty (/ *height* 2.0d0)))
-      (setf (cffi:foreign-slot-value p 'magick:magick-affine-matrix 'magick::sx) sx)
-      (setf (cffi:foreign-slot-value p 'magick:magick-affine-matrix 'magick::sy) sy)
-      (setf (cffi:foreign-slot-value p 'magick:magick-affine-matrix 'magick::tx) tx)
-      (setf (cffi:foreign-slot-value p 'magick:magick-affine-matrix 'magick::ty) ty))
-    ;; this doesn't do what i think it does (i.e. it doesn't reset the affine matrix)
-    (magick:draw-affine dw p)
-    ;; stroke length has to be 0! it's also scaled!
-    (magick:draw-set-stroke-width dw 0)))
-
-#||
-(with-wand ()
-  (with-dw (dw)
-    (transform-ndc dw)
-    (magick:draw-line dw -.5 -.5 .5 .5)))
-;; both fail
-||#
-
-;; we may have to work with these
-(defun scale-ndcp (p)
-  (new-point (* (/ *width* 2) (x p))
-	     (* (/ *height* -2) (y p))))
-
-(defun translate-ndcp (p)
-  (new-point (+ (/ *width* 2) (x p))
-	     (+ (/ *height* 2) (y p))))
-
-(defun transform-ndcp (p)
-  (translate-ndcp (scale-ndcp p)))
-
-#||
-(with-wand (:dry-run t) (scale-ndcp (translate-ndcp #C(.3 -.4))))
-(with-wand (:dry-run t) (translate-ndcp (scale-ndcp #C(.3 -.4))))
-(with-wand (:dry-run t :height 322 :width 322) (transform-ndcp #C(.3 -.4)))
-||#
-
 (defun get-wand-ndc-transform-ctx ()
   (get-transform-ctx  (new-point 0 0)
 		      (new-point -1 1) (new-point 1 1)
