@@ -287,7 +287,46 @@ a single number x is interepreted as the point (x 0)."
       (magick:draw-path-close dw)
       (magick:draw-path-finish dw))))
 
-(defun draw-ndala-petal (magick-wand npetal radius1 radius2 center)
+(defvar *curved-petal*
+  ;;madhu 101201
+  (list 0.9 .2 .8 .1))
+
+(defun draw-curved-petal (dw radius1 radius2 alpha phi center &optional
+			  (r1 (or (and *curved-petal* (elt *curved-petal* 0))
+				  0.25))
+			  (r2 (or (and *curved-petal* (elt *curved-petal* 1))
+				  0.50))
+			  (t1 (or (and *curved-petal* (elt *curved-petal* 2))
+				  0.75))
+			  (t2 (or (and *curved-petal* (elt *curved-petal* 3))
+				  0.25)))
+  (assert (< radius1 radius2))
+  (let* ((phi/2 (/ phi 2))
+	 (p0 (point radius1 (- alpha phi/2) center))
+	 (p1 (point radius1 (+ alpha phi/2) center))
+	 (radius-a (* 1.0 (+ radius1 (* (- radius2 radius1) r1))))
+	 (radius-b (* 1.0 (+ radius1 (* (- radius2 radius1) r2))))
+	 (p1a (point radius-a (- alpha (* phi/2 t1)) center))
+	 (p1b (point radius-b (- alpha (* phi/2 t2)) center))
+	 (pc  (point radius2     alpha               center))
+	 (p2b (point radius-b (+ alpha (* phi/2 t2)) center))
+	 (p2a (point radius-a (+ alpha (* phi/2 t1)) center)))
+    (with-wand-transformed-coords ((p0 p1 p1a p1b pc p2a p2b))
+      (magick:draw-path-start dw)
+      ;; (X3,Y3)=p0 (X2,-Y2)=p1a (R,0)=pc
+      (magick:draw-path-move-to-absolute dw (x p0) (y p0))
+      (magick:draw-path-curve-to-absolute dw (x p1a) (y p1a)
+					  (x p1b) (y p1b)
+					  (x pc) (y pc))
+      (magick:draw-path-curve-to-absolute dw (x p2b) (y p2b)
+					  (x p2a) (y p2a)
+					  (x p1) (y p1))
+      (magick:draw-path-elliptic-arc-absolute
+       dw radius1 radius1 (radians-to-degrees alpha :clamp-180 t) nil t (x p0) (y p0))
+      (magick:draw-path-close dw)
+      (magick:draw-path-finish dw))))
+
+(defun draw-ndala-petal (magick-wand npetal radius1 radius2 center &key (curved-p t) (repeat npetal))
   (magick:with-cloned-magick-wands ((red magick-wand))
     (magick:set-size red (magick:get-image-width magick-wand) (magick:get-image-height magick-wand))
     (magick:read-image red "radial-gradient:black-gray")
@@ -295,10 +334,13 @@ a single number x is interepreted as the point (x 0)."
     (loop with phi = (/ (* +pi+ 2 ) npetal)
 	  for i below (/ npetal 1)
 	  for angle = (* i phi)
+	  repeat repeat
 	  do (magick:with-gradient-composition (dw :magick-wand magick-wand
 						   :fill-gradient red
 						   :stroke-gradient red)
-	       (draw-petal dw radius1 radius2 angle phi center)))))
+ 	       (funcall (if curved-p #'draw-curved-petal #'draw-petal)
+			 dw radius1 radius2 angle phi center)))))
+
 
 (defun draw-quadrangle (dw center h gap)
   "h from center"
